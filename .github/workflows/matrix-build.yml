@@ -1,0 +1,70 @@
+name: Matrix Build 492db1e
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: build (node ${{ matrix.node }} on ${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest]
+        node: [18, 20, 22]   # 3 variants (runs in parallel)
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js ${{ matrix.node }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+
+      # --- Required identifier step ---
+      - name: matrix-492db1e
+        run: |
+          echo "Building for Node ${{ matrix.node }} on ${{ runner.os }}"
+
+      - name: Generate build artifact
+        run: |
+          mkdir -p dist
+          {
+            echo "Build output for Node ${{ matrix.node }} on ${{ runner.os }}"
+            echo "Commit: ${{ github.sha }}"
+            echo "Timestamp (UTC): $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+          } > "dist/output-${{ matrix.node }}.txt"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-492db1e-v${{ matrix.node }}
+          path: dist/output-${{ matrix.node }}.txt
+          if-no-files-found: error
+          retention-days: 7
+
+  # Optional but helpful: verify artifacts are present & non-empty
+  verify:
+    name: verify artifacts
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: build-492db1e-*
+          merge-multiple: true
+
+      - name: Check that artifacts are non-empty
+        run: |
+          ls -l
+          failed=0
+          for f in output-*.txt; do
+            if [ ! -s "$f" ]; then
+              echo "❌ $f is empty" >&2
+              failed=1
+            else
+              echo "✅ $f has content"
+            fi
+          done
+          exit $failed
